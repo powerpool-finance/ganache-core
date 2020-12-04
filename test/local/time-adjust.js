@@ -1,6 +1,7 @@
 const assert = require("assert-match");
 const { gte, lte } = require("assert-match/matchers");
 const initializeTestProvider = require("../helpers/web3/initializeTestProvider");
+const sleep = require("../helpers/utils/sleep");
 
 describe("Time adjustment", function() {
   let context, timestampBeforeJump;
@@ -96,5 +97,31 @@ describe("Time adjustment", function() {
 
     const { timestamp } = await web3.eth.getBlock("latest");
     assert(previousTime > timestamp);
+  });
+
+  it("should allow freezing/unfreezing time", async function() {
+    this.timeout(5000);
+    const { web3, send } = context;
+
+    const { timestamp: previousTime } = await web3.eth.getBlock("latest");
+    const freezeAt = new Date(previousTime + SECONDSTOJUMP);
+    const freezeAtTimestamp = (freezeAt.getTime() / 1000);
+
+    // Freeze
+    await send("evm_freezeTime", freezeAt);
+
+    // Mine a block so new time is recorded.
+    await send("evm_mine", null);
+
+    assert((await web3.eth.getBlock("latest")).timestamp === freezeAtTimestamp);
+    await sleep(2000);
+    await send("evm_mine", null);
+    assert((await web3.eth.getBlock("latest")).timestamp === freezeAtTimestamp);
+
+    // Unfreeze
+    await send("evm_unfreezeTime");
+    await sleep(2000);
+    await send("evm_mine", null);
+    assert((await web3.eth.getBlock("latest")).timestamp > freezeAtTimestamp);
   });
 });
